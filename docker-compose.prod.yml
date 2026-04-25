@@ -1,18 +1,9 @@
 services:
-  postgres:
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-scienta}
-      POSTGRES_USER: ${POSTGRES_USER:-scienta_user}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    # Do not expose Postgres publicly in production.
-    ports: []
-
   reflex_ui:
     restart: unless-stopped
     environment:
       API_URL: ${API_URL:-https://app.example.com}
-      DATABASE_URL: postgresql://${POSTGRES_USER:-scienta_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-scienta}
+      DATABASE_URL: ${DATABASE_URL}
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
       N8N_CHAT_WEBHOOK: ${N8N_CHAT_WEBHOOK}
       N8N_SUMMARY_WEBHOOK: ${N8N_SUMMARY_WEBHOOK}
