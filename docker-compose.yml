@@ -1,0 +1,74 @@
+services:
+  postgres:
+    build:
+      context: ./postgres
+      dockerfile: Dockerfile
+    container_name: scienta_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: scienta
+      POSTGRES_USER: scienta_user
+      POSTGRES_PASSWORD: scienta_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - scienta_network
+
+  reflex_ui:
+    build:
+      context: ./reflex_ui
+      dockerfile: Dockerfile
+    container_name: scienta_reflex_ui
+    ports:
+      - "3000:3000"
+      - "8000:8000"
+    environment:
+      API_URL: http://localhost:8000
+      DATABASE_URL: postgresql://scienta_user:scienta_password@postgres:5432/scienta
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-change-me-in-production}
+    secrets:
+      - openai_api_key
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - scienta_network
+
+  n8n:
+    build:
+      context: ./n8n_scienta
+      dockerfile: Dockerfile
+    container_name: scienta_n8n
+    ports:
+      - "5600:5600"
+    volumes:
+      - ./n8n_scienta:/home/node/.n8n
+    environment:
+      N8N_PORT: 5600
+      GENERIC_TIMEZONE: America/Sao_Paulo
+      N8N_RESTRICT_FILE_ACCESS_TO: /files
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - scienta_network
+
+volumes:
+  postgres_data:
+
+networks:
+  scienta_network:
+    name: scienta_network
+
+secrets:
+  openai_api_key:
+    file: ./secrets/openai_api_key.txt

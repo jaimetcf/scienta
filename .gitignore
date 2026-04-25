@@ -1,0 +1,30 @@
+.DS_Store
+/secrets/
+/run/secrets/
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# Reflex / web build artifacts
+/reflex_ui/.web/
+/reflex_ui/.states/
+/reflex_ui/.reflex/
+
+# Logs
+*.log
+/n8n_scienta/*.log
+
+# OS/editor
+.vscode/
+.idea/
+
+# Local/experimental UI project
+chat-with-it-ui/

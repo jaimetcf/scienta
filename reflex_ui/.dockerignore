@@ -1,0 +1,12 @@
+.git
+__pycache__
+*.py[cod]
+.Python
+.env
+.env.*
+.web
+node_modules
+*.egg-info
+.venv
+venv
+.DS_Store
