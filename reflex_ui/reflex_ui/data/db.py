@@ -64,7 +64,7 @@ def database_url() -> str:
     if not url:
         raise RuntimeError(
             "DATABASE_URL is not set. Example: "
-            "postgresql://scienta_user:scienta_password@postgres:5432/scienta"
+            "postgresql://user:password@host:5432/scienta?sslmode=require"
         )
     return url
 
