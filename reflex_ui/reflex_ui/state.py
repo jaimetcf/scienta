@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
-from openai import AsyncOpenAI
 import reflex as rx
 from reflex.event import EventSpec
 
@@ -136,20 +135,38 @@ class State(ChatDataState):
         user_message: str,
     ) -> None:
         try:
-            api_key = os.environ.get("OPENAI_API_KEY")
-            if not api_key or not user_message.strip():
+            if not user_message.strip():
                 return
-            client = AsyncOpenAI(api_key=api_key)
-            resp = await client.chat.completions.create(
-                model=_TITLE_SUMMARY_MODEL,
-                messages=[
-                    {"role": "system", "content": _SESSION_TITLE_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_message.strip()},
-                ],
-                temperature=0.3,
-                max_tokens=64,
-            )
-            raw = (resp.choices[0].message.content or "").strip()
+            summary_webhook_url = os.environ.get("N8N_SUMMARY_WEBHOOK", "").strip()
+            print(f"[scienta] N8N_SUMMARY_WEBHOOK={summary_webhook_url}")
+
+            if not summary_webhook_url:
+                return
+
+            payload = {
+                "messages": [{"role": "user", "content": user_message.strip()}],
+                "model": _TITLE_SUMMARY_MODEL,
+            }
+
+            def _call_summary_webhook() -> object:
+                body = json.dumps(payload).encode("utf-8")
+                req = urllib_request.Request(
+                    summary_webhook_url,
+                    data=body,
+                    method="POST",
+                    headers={"Content-Type": "application/json"},
+                )
+                with urllib_request.urlopen(req, timeout=120) as response:
+                    raw = response.read().decode("utf-8").strip()
+                    if not raw:
+                        return ""
+                    try:
+                        return json.loads(raw)
+                    except json.JSONDecodeError:
+                        return raw
+
+            webhook_response = await asyncio.to_thread(_call_summary_webhook)
+            raw = _extract_assistant_text_from_webhook(webhook_response)
             title = _cap_session_title_words(raw, 10)
             if not title:
                 return
@@ -262,10 +279,10 @@ class State(ChatDataState):
 
         assistant_text = ""
         try:
-            webhook_url = os.environ.get("N8N_WEBHOOK", "").strip()
-            print(f"[scienta] N8N_WEBHOOK={webhook_url}")
+            webhook_url = os.environ.get("N8N_CHAT_WEBHOOK", "").strip()
+            print(f"[scienta] N8N_CHAT_WEBHOOK={webhook_url}")
             if not webhook_url:
-                raise RuntimeError("N8N_WEBHOOK is not set.")
+                raise RuntimeError("N8N_CHAT_WEBHOOK is not set.")
 
             webhook_messages = list(msgs_for_api)
             expected_last_user_message = {"role": "user", "content": question}
