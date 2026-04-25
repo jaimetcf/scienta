@@ -1,0 +1,36 @@
+services:
+  postgres:
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-scienta}
+      POSTGRES_USER: ${POSTGRES_USER:-scienta_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # Do not expose Postgres publicly in production.
+    ports: []
+
+  reflex_ui:
+    restart: unless-stopped
+    environment:
+      API_URL: ${API_URL:-https://app.example.com}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-scienta_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-scienta}
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      N8N_CHAT_WEBHOOK: ${N8N_CHAT_WEBHOOK}
+      N8N_SUMMARY_WEBHOOK: ${N8N_SUMMARY_WEBHOOK}
+    # Expose only on loopback; Caddy will be the public entrypoint.
+    ports:
+      - "127.0.0.1:3000:3000"
+      - "127.0.0.1:8000:8000"
+
+  n8n:
+    restart: unless-stopped
+    environment:
+      N8N_PORT: 5600
+      GENERIC_TIMEZONE: ${GENERIC_TIMEZONE:-America/Sao_Paulo}
+      N8N_RESTRICT_FILE_ACCESS_TO: /files
+      # Needed by n8n behind reverse proxy + TLS.
+      N8N_HOST: ${N8N_HOST:-n8n.example.com}
+      N8N_PROTOCOL: https
+      WEBHOOK_URL: ${WEBHOOK_URL:-https://n8n.example.com/}
+    # Expose only on loopback; Caddy will terminate TLS.
+    ports:
+      - "127.0.0.1:5600:5600"
