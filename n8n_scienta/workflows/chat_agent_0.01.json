@@ -1,0 +1,241 @@
+{
+  "name": "chat_agent",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "56f8a2c7-4f52-4464-aef5-a4d0c61c2c01",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -688,
+        -496
+      ],
+      "id": "f8b02087-4584-4dc6-9648-36f45260d5fd",
+      "name": "Webhook",
+      "webhookId": "56f8a2c7-4f52-4464-aef5-a4d0c61c2c01"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={ \"model\": {{ $json.body.model }} , \"chatInput\": {{ $json.body.messages }}}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -464,
+        -496
+      ],
+      "id": "871f0fe3-6604-42f8-a63f-4193822120fc",
+      "name": "Format to Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -240,
+        -496
+      ],
+      "id": "4b194bab-2e29-416a-8f6a-ba087a6f6880",
+      "name": "Chat Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "={{ $('Format to Agent').item.json.model }}",
+          "mode": "id"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -240,
+        -320
+      ],
+      "id": "139fa17d-36d2-4d9c-8d6f-757e042d5687",
+      "name": "Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "921q3Fr7QP2wgCIx",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "\"Your work is to summaraize the user message in a sentence with a maximum of 10 words, but try to make it as short as possible.\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -240,
+        -128
+      ],
+      "id": "25c5d1a4-f7b0-4f6d-8606-db2917740ad5",
+      "name": "Summarizer Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "gpt-4o-mini"
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        -240,
+        48
+      ],
+      "id": "43e70d80-8447-4957-ab0f-64120b37fd5c",
+      "name": "Summarizer Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "921q3Fr7QP2wgCIx",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "89b8e991-306d-4ee5-8a36-a27a4c3a426f",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -688,
+        -128
+      ],
+      "id": "cfb1fe8e-900c-4cc7-8602-59bcb7e78827",
+      "name": "Summary Webhook",
+      "webhookId": "89b8e991-306d-4ee5-8a36-a27a4c3a426f"
+    },
+    {
+      "parameters": {
+        "mode": "raw",
+        "jsonOutput": "={ \"chatInput\": {{ $json.body.messages }}}\n",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -464,
+        -128
+      ],
+      "id": "7956348a-8063-4659-bddd-53ee55e3f621",
+      "name": "Format to Summarizer"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format to Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format to Agent": {
+      "main": [
+        [
+          {
+            "node": "Chat Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chat Agent": {
+      "main": [
+        []
+      ]
+    },
+    "Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Chat Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarizer Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Summarizer Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format to Summarizer": {
+      "main": [
+        [
+          {
+            "node": "Summarizer Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summary Webhook": {
+      "main": [
+        [
+          {
+            "node": "Format to Summarizer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "70190e24-37b0-4f7b-b339-fb67eb28582e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8b7c9462a08b7aeccecb34e56166df86c625879d2f5d7128343a2298c2ad81ae"
+  },
+  "id": "bcZVlMr7cyq4a7Zf",
+  "tags": [
+    {
+      "updatedAt": "2026-04-21T19:31:50.530Z",
+      "createdAt": "2026-04-21T19:31:50.530Z",
+      "id": "WMjjqnlN9Nha8L6V",
+      "name": "dev"
+    }
+  ]
+}

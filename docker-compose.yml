@@ -34,6 +34,8 @@ services:
       API_URL: http://localhost:8000
       DATABASE_URL: postgresql://scienta_user:scienta_password@postgres:5432/scienta
       AUTH_JWT_SECRET: ${AUTH_JWT_SECRET:-change-me-in-production}
+      N8N_CHAT_WEBHOOK: http://n8n:5600/webhook/56f8a2c7-4f52-4464-aef5-a4d0c61c2c01
+      N8N_SUMMARY_WEBHOOK: http://n8n:5600/webhook/89b8e991-306d-4ee5-8a36-a27a4c3a426f
     secrets:
       - openai_api_key
     depends_on:

@@ -1,9 +1,11 @@
 import asyncio
+import json
 import os
 import uuid
 from datetime import datetime, timezone
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
-from openai import AsyncOpenAI
 import reflex as rx
 from reflex.event import EventSpec
 
@@ -12,6 +14,7 @@ from reflex_ui.chat_data_state import ChatDataState
 from reflex_ui.data import auth_crypto, repository
 from reflex_ui.data.db import get_pool
 from reflex_ui.data.formatting import format_message_time_pt_br, thread_message_from_row
+
 
 # OpenAI model ids for chat completions (streaming).
 LLM_MODEL_CHOICES: list[str] = [
@@ -50,6 +53,33 @@ def _cap_session_title_words(text: str, max_words: int = 10) -> str:
     if not words:
         return ""
     return " ".join(words[:max_words])
+
+
+def _extract_assistant_text_from_webhook(data: object) -> str:
+    if isinstance(data, str):
+        return data.strip()
+
+    if isinstance(data, list):
+        for item in data:
+            text = _extract_assistant_text_from_webhook(item)
+            if text:
+                return text
+        return ""
+
+    if isinstance(data, dict):
+        for key in ("output", "answer", "response", "content", "message", "text"):
+            value = data.get(key)
+            if isinstance(value, str) and value.strip():
+                return value.strip()
+        # Common n8n shape where content is nested inside another object.
+        for key in ("data", "result", "body"):
+            value = data.get(key)
+            text = _extract_assistant_text_from_webhook(value)
+            if text:
+                return text
+        return ""
+
+    return ""
 
 
 class State(ChatDataState):
@@ -105,20 +135,38 @@ class State(ChatDataState):
         user_message: str,
     ) -> None:
         try:
-            api_key = os.environ.get("OPENAI_API_KEY")
-            if not api_key or not user_message.strip():
+            if not user_message.strip():
                 return
-            client = AsyncOpenAI(api_key=api_key)
-            resp = await client.chat.completions.create(
-                model=_TITLE_SUMMARY_MODEL,
-                messages=[
-                    {"role": "system", "content": _SESSION_TITLE_SYSTEM_PROMPT},
-                    {"role": "user", "content": user_message.strip()},
-                ],
-                temperature=0.3,
-                max_tokens=64,
-            )
-            raw = (resp.choices[0].message.content or "").strip()
+            summary_webhook_url = os.environ.get("N8N_SUMMARY_WEBHOOK", "").strip()
+            print(f"[scienta] N8N_SUMMARY_WEBHOOK={summary_webhook_url}")
+
+            if not summary_webhook_url:
+                return
+
+            payload = {
+                "messages": [{"role": "user", "content": user_message.strip()}],
+                "model": _TITLE_SUMMARY_MODEL,
+            }
+
+            def _call_summary_webhook() -> object:
+                body = json.dumps(payload).encode("utf-8")
+                req = urllib_request.Request(
+                    summary_webhook_url,
+                    data=body,
+                    method="POST",
+                    headers={"Content-Type": "application/json"},
+                )
+                with urllib_request.urlopen(req, timeout=120) as response:
+                    raw = response.read().decode("utf-8").strip()
+                    if not raw:
+                        return ""
+                    try:
+                        return json.loads(raw)
+                    except json.JSONDecodeError:
+                        return raw
+
+            webhook_response = await asyncio.to_thread(_call_summary_webhook)
+            raw = _extract_assistant_text_from_webhook(webhook_response)
             title = _cap_session_title_words(raw, 10)
             if not title:
                 return
@@ -229,87 +277,107 @@ class State(ChatDataState):
         if not msgs_for_api:
             msgs_for_api = [{"role": "user", "content": question}]
 
+        assistant_text = ""
         try:
-            client = AsyncOpenAI(api_key=os.environ["OPENAI_API_KEY"])
-            session = await client.chat.completions.create(
-                model=model,
-                messages=msgs_for_api,
-                temperature=0.7,
-                stream=True,
-            )
+            webhook_url = os.environ.get("N8N_CHAT_WEBHOOK", "").strip()
+            print(f"[scienta] N8N_CHAT_WEBHOOK={webhook_url}")
+            if not webhook_url:
+                raise RuntimeError("N8N_CHAT_WEBHOOK is not set.")
 
-            first_assistant_chunk = True
-            async for item in session:
-                delta = item.choices[0].delta
-                if not hasattr(delta, "content"):
-                    continue
-                if delta.content is None:
-                    continue
-                chunk = delta.content
-                if not chunk:
-                    continue
-                async with self:
-                    if first_assistant_chunk:
-                        self.thread_messages.append(
-                            {
-                                "id": "streaming",
-                                "role": "assistant",
-                                "content": chunk,
-                                "created_at": "",
-                                "time_display": "",
-                            }
-                        )
-                        first_assistant_chunk = False
-                    else:
-                        if not self.thread_messages:
-                            continue
-                        last = self.thread_messages[-1]
-                        if last.get("role") != "assistant":
-                            self.thread_messages.append(
-                                {
-                                    "id": "streaming",
-                                    "role": "assistant",
-                                    "content": chunk,
-                                    "created_at": "",
-                                    "time_display": "",
-                                }
-                            )
-                        else:
-                            self.thread_messages[-1] = {
-                                **last,
-                                "content": (last.get("content") or "") + chunk,
-                            }
-                yield
-                yield _scroll_chat_to_bottom()
+            webhook_messages = list(msgs_for_api)
+            expected_last_user_message = {"role": "user", "content": question}
+            if not webhook_messages or webhook_messages[-1] != expected_last_user_message:
+                webhook_messages.append(expected_last_user_message)
 
-            assistant_text = ""
-            async with self:
-                if self.thread_messages:
-                    last = self.thread_messages[-1]
-                    if last.get("role") == "assistant":
-                        assistant_text = last.get("content") or ""
+            payload = {
+                "messages": webhook_messages,
+                "model": model,
+            }
 
-            if (
-                user_id is not None
-                and pool is not None
-                and sid_uuid is not None
-                and assistant_text
-            ):
-                await repository.insert_message(
-                    pool,
-                    user_id,
-                    sid_uuid,
-                    role="assistant",
-                    content=assistant_text,
-                    model=model,
-                    token_usage=None,
+            def _call_n8n_webhook() -> object:
+                body = json.dumps(payload).encode("utf-8")
+                req = urllib_request.Request(
+                    webhook_url,
+                    data=body,
+                    method="POST",
+                    headers={"Content-Type": "application/json"},
                 )
-                rows = await repository.list_messages(pool, user_id, sid_uuid)
-                async with self:
-                    self.thread_messages = [
-                        thread_message_from_row(r) for r in rows
-                    ]
-                await self.refresh_sessions()
-        finally:
+                with urllib_request.urlopen(req, timeout=120) as response:
+                    raw = response.read().decode("utf-8").strip()
+                    if not raw:
+                        return ""
+                    try:
+                        return json.loads(raw)
+                    except json.JSONDecodeError:
+                        return raw
+
+            webhook_response = await asyncio.to_thread(_call_n8n_webhook)
+            assistant_text = _extract_assistant_text_from_webhook(webhook_response)
+            if not assistant_text:
+                raise RuntimeError(
+                    "N8N webhook did not return assistant text in the response."
+                )
+
+            now = _now_iso()
             async with self:
-                self.is_loading = False
+                self.thread_messages.append(
+                    {
+                        "id": f"assistant-{uuid.uuid4()}",
+                        "role": "assistant",
+                        "content": assistant_text,
+                        "created_at": now,
+                        "time_display": format_message_time_pt_br(now),
+                    }
+                )
+            yield
+            yield _scroll_chat_to_bottom()
+        except (urllib_error.URLError, urllib_error.HTTPError, RuntimeError) as e:
+            now = _now_iso()
+            async with self:
+                self.thread_messages.append(
+                    {
+                        "id": f"assistant-error-{uuid.uuid4()}",
+                        "role": "assistant",
+                        "content": f"Error calling workflow webhook: {e}",
+                        "created_at": now,
+                        "time_display": format_message_time_pt_br(now),
+                    }
+                )
+            yield
+            yield _scroll_chat_to_bottom()
+        except Exception as e:
+            now = _now_iso()
+            async with self:
+                self.thread_messages.append(
+                    {
+                        "id": f"assistant-error-{uuid.uuid4()}",
+                        "role": "assistant",
+                        "content": f"Unexpected error while getting response: {e}",
+                        "created_at": now,
+                        "time_display": format_message_time_pt_br(now),
+                    }
+                )
+            yield
+            yield _scroll_chat_to_bottom()
+
+        if (
+            user_id is not None
+            and pool is not None
+            and sid_uuid is not None
+            and assistant_text
+        ):
+            await repository.insert_message(
+                pool,
+                user_id,
+                sid_uuid,
+                role="assistant",
+                content=assistant_text,
+                model=model,
+                token_usage=None,
+            )
+            rows = await repository.list_messages(pool, user_id, sid_uuid)
+            async with self:
+                self.thread_messages = [thread_message_from_row(r) for r in rows]
+            await self.refresh_sessions()
+        async with self:
+            self.is_loading = False
