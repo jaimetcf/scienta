@@ -13,6 +13,12 @@ venv/
 .pytest_cache/
 .mypy_cache/
 
+# Next.js (scienta_app)
+/scienta_app/.next/
+/scienta_app/node_modules/
+/scienta_app/.env
+
+
 # Reflex / web build artifacts
 /reflex_ui/.web/
 /reflex_ui/.states/
@@ -20,11 +26,8 @@ venv/
 
 # Logs
 *.log
-/n8n_scienta/*.log
+/scienta_n8n/*.log
 
 # OS/editor
 .vscode/
 .idea/
-
-# Local/experimental UI project
-chat-with-it-ui/

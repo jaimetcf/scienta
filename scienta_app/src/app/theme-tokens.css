@@ -1,0 +1,32 @@
+:root {
+  /* Reflex style.py token parity */
+  --rx-shadow: rgba(0, 0, 0, 0.15) 0px 2px 8px;
+  --rx-chat-margin: 20%;
+  --rx-chat-column-max-width: 62.4rem;
+  --rx-page-padding-y: 2rem;
+  --rx-session-sidebar-width: 24rem;
+  --rx-session-sidebar-min-width: 21rem;
+  --rx-session-sidebar-max-width: 24rem;
+  --rx-session-sidebar-collapsed-width: 3.6rem;
+  --rx-session-row-trash-inset: 0.625rem;
+  --rx-delete-modal-max-width: 24rem;
+  --rx-delete-modal-padding: 1.5rem;
+
+  /* Radix Themes parity (Reflex root uses accentColor="blue") */
+  --rx-gray-1: #0b0d12;
+  --rx-gray-2: #10141c;
+  --rx-gray-3: #161b25;
+  --rx-gray-4: #1f2531;
+  --rx-gray-5: #2a3140;
+  --rx-gray-6: #374052;
+  --rx-gray-11: #a9b6c9;
+  --rx-gray-12: #f3f6fb;
+
+  --rx-blue-3: #112033;
+  --rx-blue-8: #4ea3e0;
+  --rx-blue-9: #2f9cf5;
+  --rx-blue-10: #2289dc;
+  --rx-blue-11: #73b7ea;
+
+  --rx-black-a12: hsl(0 0% 0% / 0.95);
+}
