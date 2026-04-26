@@ -20,11 +20,8 @@ venv/
 
 # Logs
 *.log
-/n8n_scienta/*.log
+/scienta_n8n/*.log
 
 # OS/editor
 .vscode/
 .idea/
-
-# Local/experimental UI project
-chat-with-it-ui/
