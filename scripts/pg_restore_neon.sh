@@ -8,7 +8,12 @@ cd "$ROOT"
 
 DUMP="${1:-$ROOT/scienta.dump}"
 [[ -f "$DUMP" ]] || { echo "Dump not found: $DUMP" >&2; exit 1; }
-[[ -f "$ROOT/.env" ]] || { echo "Missing $ROOT/.env (needs DATABASE_URL)." >&2; exit 1; }
+
+ENV_FILE="$ROOT/scienta_ui/.env"
+if [[ ! -f "$ENV_FILE" ]]; then
+  ENV_FILE="$ROOT/.env"
+fi
+[[ -f "$ENV_FILE" ]] || { echo "Missing env file (expected $ROOT/scienta_ui/.env)." >&2; exit 1; }
 
 DUMP_ABS="$(cd "$(dirname "$DUMP")" && pwd)/$(basename "$DUMP")"
 case "$DUMP_ABS" in
@@ -19,7 +24,7 @@ case "$DUMP_ABS" in
   ;;
 esac
 
-docker run --rm --env-file "$ROOT/.env" \
+docker run --rm --env-file "$ENV_FILE" \
   -v "$ROOT:/work" \
   -w /work \
   postgres:16-alpine \
