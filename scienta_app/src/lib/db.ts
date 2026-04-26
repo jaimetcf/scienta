@@ -65,7 +65,7 @@ function getDatabaseUrl(): string {
 
   const envCandidates = [
     path.resolve(process.cwd(), ".env"),
-    path.resolve(process.cwd(), "scienta_ui", ".env"),
+    path.resolve(process.cwd(), "scienta_app", ".env"),
     path.resolve(process.cwd(), "..", ".env"),
   ];
   const envPath = envCandidates.find((candidate) => existsSync(candidate));
