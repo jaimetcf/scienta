@@ -54,14 +54,21 @@ export async function POST(request: Request) {
     tokenUsage: null,
   });
 
-  if (isFirstMessage) {
-    void summarizeSessionTitle(question).then(async (title) => {
-      if (!title) {
-        return;
-      }
-      await updateChatSessionTitle(userId, sessionId, title);
-    });
-  }
+  // Must finish before the response is sent, or the client's refreshSessions() races and
+  // the sidebar still shows the default "New Chat". Run in parallel with the assistant
+  // request so latency stays bounded by max(assistant, summary).
+  const runTitle: Promise<void> = isFirstMessage
+    ? (async () => {
+        try {
+          const title = await summarizeSessionTitle(question);
+          if (title) {
+            await updateChatSessionTitle(userId, sessionId, title);
+          }
+        } catch {
+          // Session title is optional; do not block chat on n8n summary failures.
+        }
+      })()
+    : Promise.resolve();
 
   const stored = await listMessages(userId, sessionId);
   const messagesForApi: ApiMessage[] = stored
@@ -75,8 +82,9 @@ export async function POST(request: Request) {
 
   let assistantText = "";
   try {
-    assistantText = await requestAssistantReply(messagesForApi, model);
+    [assistantText] = await Promise.all([requestAssistantReply(messagesForApi, model), runTitle]);
   } catch (error) {
+    await runTitle;
     const now = nowIso();
     const message = `Error calling workflow webhook: ${
       error instanceof Error ? error.message : String(error)

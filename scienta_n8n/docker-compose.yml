@@ -10,9 +10,3 @@ services:
       GENERIC_TIMEZONE: America/Sao_Paulo
       N8N_RESTRICT_FILE_ACCESS_TO: /files
     restart: unless-stopped
-    networks:
-      - scienta_network
-
-networks:
-  scienta_network:
-    external: true

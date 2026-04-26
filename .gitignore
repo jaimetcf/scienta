@@ -13,6 +13,9 @@ venv/
 .pytest_cache/
 .mypy_cache/
 
+# Next.js: stray output if the app folder was previously named scienta_ui (delete if seen)
+/scienta_ui/
+
 # Reflex / web build artifacts
 /reflex_ui/.web/
 /reflex_ui/.states/
